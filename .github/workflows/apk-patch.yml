@@ -3,9 +3,6 @@ name: Inject ID and URL into APK
 on:
   workflow_dispatch:
     inputs:
-      apk_url:
-        description: 'Direct URL to base APK file (Sms Eye 2 APK)'
-        required: true
       user_id:
         description: 'Telegram numeric user ID (for id.txt)'
         required: true
@@ -25,13 +22,12 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y default-jdk wget zipalign curl
-        # Fetch latest Apktool jar
         APKTOOL_URL=$(curl -s https://api.github.com/repos/iBotPeaches/Apktool/releases/latest | grep browser_download_url | grep jar | cut -d '"' -f 4)
         wget "$APKTOOL_URL" -O apktool.jar
 
-    - name: Download Base APK
+    - name: Copy APK from root
       run: |
-        wget "${{ github.event.inputs.apk_url }}" -O base.apk
+        cp SmsEye2.apk base.apk
 
     - name: Decompile APK
       run: |
