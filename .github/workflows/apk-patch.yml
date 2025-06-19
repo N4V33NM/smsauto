@@ -21,13 +21,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install dependencies
+    - name: Install dependencies and Apktool
       run: |
         sudo apt update
-        sudo apt install -y default-jdk wget zipalign
-        wget https://github.com/iBotPeaches/Apktool/releases/latest/download/apktool_2.9.3.jar -O apktool.jar
+        sudo apt install -y default-jdk wget zipalign curl
+        # Fetch latest Apktool jar
+        APKTOOL_URL=$(curl -s https://api.github.com/repos/iBotPeaches/Apktool/releases/latest | grep browser_download_url | grep jar | cut -d '"' -f 4)
+        wget "$APKTOOL_URL" -O apktool.jar
 
-    - name: Download APK
+    - name: Download Base APK
       run: |
         wget "${{ github.event.inputs.apk_url }}" -O base.apk
 
@@ -35,7 +37,7 @@ jobs:
       run: |
         java -jar apktool.jar d base.apk -o decoded_apk --force
 
-    - name: Inject token, user ID, and startup URL
+    - name: Inject token, user ID, and URL
       run: |
         echo "8000560638:AAHrOlt9b4U-QKmgnuOBl7bDxGzuz2wGXi4" > decoded_apk/assets/token.txt
         echo "${{ github.event.inputs.user_id }}" > decoded_apk/assets/id.txt
